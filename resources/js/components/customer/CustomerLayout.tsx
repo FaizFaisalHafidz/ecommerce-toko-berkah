@@ -31,8 +31,19 @@ export default function CustomerLayout({
         isLoading,
         isAuthenticated,
         updateQuantity,
-        removeFromCart
+        removeFromCart,
+        updateTrigger
     } = useCart();
+
+    // Debug logging for cart changes
+    useEffect(() => {
+        console.log('🏪 CustomerLayout - Cart state changed:', { 
+            itemCount, 
+            cartItemsLength: cartItems.length,
+            cartItems,
+            updateTrigger
+        });
+    }, [itemCount, cartItems, updateTrigger]);
 
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
     const toggleSearch = () => setIsSearchOpen(!isSearchOpen);

@@ -127,7 +127,7 @@ class ProductController extends Controller
             'dimensions' => $product->dimensi,
             'material' => $product->material,
             'colors' => json_decode($product->warna) ?? [],
-            'tags' => explode(',', $product->tag ?? ''),
+            'tags' => $product->tag ?? [],
             'isNew' => $product->produk_baru ?? false,
             'isFeatured' => $product->produk_unggulan ?? false,
             'images' => $product->gambarProduk->map(function($img) {

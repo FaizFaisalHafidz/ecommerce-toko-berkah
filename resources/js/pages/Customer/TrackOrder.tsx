@@ -12,10 +12,10 @@ interface Order {
     no_telepon: string;
     email: string;
     metode_pembayaran: string;
-    status_pesanan: string;
-    status_pembayaran: string;
-    total_harga: number;
-    ongkos_kirim: number;
+    status_pesanan?: string;
+    status_pembayaran?: string;
+    total_harga: number | string;
+    ongkos_kirim: number | string;
     created_at: string;
     detailPesanan: Array<{
         id: number;
@@ -26,7 +26,7 @@ interface Order {
             gambarProduk: Array<{ url: string; }>;
         };
         jumlah: number;
-        harga_saat_beli: number;
+        harga_saat_beli: number | string;
     }>;
 }
 
@@ -83,29 +83,67 @@ export default function TrackOrder() {
     const handleTrackOrder = async (e: React.FormEvent) => {
         e.preventDefault();
         await trackOrderById(orderId);
-    };    const getStatusColor = (status: string) => {
+    };    const getStatusColor = (status: string | undefined | null) => {
+        if (!status) return 'text-gray-600 bg-gray-50 border-gray-200';
+        
         switch (status.toLowerCase()) {
             case 'pending':
+            case 'menunggu_pembayaran':
                 return 'text-yellow-600 bg-yellow-50 border-yellow-200';
             case 'paid':
+            case 'dibayar':
             case 'confirmed':
+            case 'dikonfirmasi':
                 return 'text-green-600 bg-green-50 border-green-200';
             case 'shipped':
+            case 'dikirim':
                 return 'text-blue-600 bg-blue-50 border-blue-200';
             case 'delivered':
+            case 'selesai':
                 return 'text-green-700 bg-green-100 border-green-300';
             case 'cancelled':
+            case 'dibatalkan':
                 return 'text-red-600 bg-red-50 border-red-200';
+            case 'belum_dibayar':
+                return 'text-orange-600 bg-orange-50 border-orange-200';
             default:
                 return 'text-gray-600 bg-gray-50 border-gray-200';
         }
     };
 
-    const formatCurrency = (amount: number) => {
+    const formatStatus = (status: string | undefined | null) => {
+        if (!status) return 'Tidak diketahui';
+        
+        const statusMap: { [key: string]: string } = {
+            'menunggu_pembayaran': 'Menunggu Pembayaran',
+            'belum_dibayar': 'Belum Dibayar',
+            'dibayar': 'Sudah Dibayar',
+            'dikonfirmasi': 'Dikonfirmasi',
+            'diproses': 'Diproses',
+            'dikirim': 'Dikirim',
+            'selesai': 'Selesai',
+            'dibatalkan': 'Dibatalkan',
+            'pending': 'Pending',
+            'paid': 'Dibayar',
+            'confirmed': 'Dikonfirmasi',
+            'shipped': 'Dikirim',
+            'delivered': 'Selesai',
+            'cancelled': 'Dibatalkan'
+        };
+        
+        return statusMap[status.toLowerCase()] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
+
+    const formatCurrency = (amount: number | string) => {
+        const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR'
-        }).format(amount);
+        }).format(numAmount);
+    };
+
+    const toNumber = (value: number | string): number => {
+        return typeof value === 'string' ? parseFloat(value) : value;
     };
 
     return (
@@ -207,10 +245,10 @@ export default function TrackOrder() {
                                         </div>
                                         <div className="text-right space-y-2">
                                             <div className={`inline-block px-4 py-2 rounded-none text-sm font-medium border shadow-lg ${getStatusColor(order.status_pesanan)}`}>
-                                                {order.status_pesanan}
+                                                {formatStatus(order.status_pesanan)}
                                             </div>
                                             <div className={`block px-4 py-2 rounded-none text-sm font-medium border shadow-lg ${getStatusColor(order.status_pembayaran)}`}>
-                                                Pembayaran: {order.status_pembayaran}
+                                                Pembayaran: {formatStatus(order.status_pembayaran)}
                                             </div>
                                         </div>
                                     </div>
@@ -267,7 +305,7 @@ export default function TrackOrder() {
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="font-medium text-gray-900 text-lg">
-                                                            {formatCurrency(item.harga_saat_beli * item.jumlah)}
+                                                            {formatCurrency(toNumber(item.harga_saat_beli) * item.jumlah)}
                                                         </p>
                                                     </div>
                                                 </div>
@@ -281,7 +319,7 @@ export default function TrackOrder() {
                                             <div className="space-y-3 text-sm">
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-600 tracking-wide">Subtotal:</span>
-                                                    <span className="text-gray-900">{formatCurrency(order.total_harga - order.ongkos_kirim)}</span>
+                                                    <span className="text-gray-900">{formatCurrency(toNumber(order.total_harga) - toNumber(order.ongkos_kirim))}</span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-gray-600 tracking-wide">Ongkos Kirim:</span>

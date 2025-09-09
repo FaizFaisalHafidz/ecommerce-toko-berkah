@@ -310,4 +310,62 @@ class CheckoutController extends Controller
             'order' => $order
         ]);
     }
+
+    /**
+     * Track order via API (GET request)
+     */
+    public function trackOrderApi($orderNumber)
+    {
+        $order = Pesanan::with(['detailPesanan.produk.gambarProduk', 'user'])
+            ->where('nomor_pesanan', $orderNumber)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pesanan tidak ditemukan'
+            ], 404);
+        }
+
+        // Format order data for frontend
+        $formattedOrder = [
+            'id' => $order->id,
+            'nomor_pesanan' => $order->nomor_pesanan,
+            'nama_penerima' => $order->nama_customer,
+            'alamat_lengkap' => $order->alamat_pengiriman,
+            'kota' => $order->kota,
+            'provinsi' => $order->provinsi,
+            'kode_pos' => $order->kode_pos,
+            'no_telepon' => $order->telepon_customer,
+            'email' => $order->email_customer,
+            'metode_pembayaran' => $order->metode_pembayaran ?? 'Belum dipilih',
+            'status_pesanan' => $order->status_pesanan ?? 'pending',
+            'status_pembayaran' => $order->status_pembayaran ?? 'pending',
+            'total_harga' => $order->total_akhir,
+            'ongkos_kirim' => $order->ongkos_kirim,
+            'created_at' => $order->created_at->toISOString(),
+            'detailPesanan' => $order->detailPesanan->map(function ($detail) {
+                return [
+                    'id' => $detail->id,
+                    'produk' => [
+                        'id' => $detail->produk->id,
+                        'nama' => $detail->produk->nama_produk,
+                        'harga' => $detail->produk->harga,
+                        'gambarProduk' => $detail->produk->gambarProduk->map(function ($gambar) {
+                            return [
+                                'url' => '/storage/' . $gambar->path_gambar,
+                            ];
+                        })->toArray(),
+                    ],
+                    'jumlah' => $detail->jumlah,
+                    'harga_saat_beli' => $detail->harga_satuan,
+                ];
+            }),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $formattedOrder
+        ]);
+    }
 }

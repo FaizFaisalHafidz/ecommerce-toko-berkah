@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface CartItem {
     id: string; // Unique ID untuk localStorage
@@ -11,11 +11,43 @@ interface CartItem {
     slug: string;
 }
 
+interface UseCartReturn {
+    cartItems: CartItem[];
+    subtotal: number;
+    shipping: number;
+    total: number;
+    itemCount: number;
+    isLoading: boolean;
+    isAuthenticated: boolean;
+    addToCart: (product: {
+        id: number;
+        name: string;
+        price: number;
+        image: string;
+        slug: string;
+    }, quantity?: number, color?: string) => boolean;
+    updateQuantity: (itemId: string, quantity: number) => void;
+    removeFromCart: (itemId: string) => void;
+    clearCart: () => void;
+    getCartData: () => any;
+    updateTrigger: number;
+}
+
 const CART_STORAGE_KEY = 'toko_tas_berkah_cart';
 
-export function useCart() {
+export function useCart(): UseCartReturn {
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [updateTrigger, setUpdateTrigger] = useState(0);
+    
+    // Create unique instance ID for debugging
+    const instanceId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
+
+    // Force re-render function
+    const forceUpdate = () => {
+        console.log(`🔄 Force update triggered for instance ${instanceId}`);
+        setUpdateTrigger(prev => prev + 1);
+    };
 
     // Load cart from localStorage on mount
     useEffect(() => {
@@ -24,6 +56,7 @@ export function useCart() {
 
     // Save cart to localStorage whenever cartItems change
     useEffect(() => {
+        console.log('💾 Cart items changed, saving to localStorage:', cartItems);
         saveCartToStorage(cartItems);
     }, [cartItems]);
 
@@ -48,11 +81,24 @@ export function useCart() {
         }
     };
 
-    // Calculate totals
-    const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shipping = subtotal > 400000 ? 0 : 25000; // Free shipping over 400k
-    const total = subtotal + shipping;
-    const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    // Calculate totals with useMemo to ensure reactivity
+    const subtotal = useMemo(() => 
+        cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0), 
+        [cartItems]
+    );
+    const shipping = useMemo(() => 
+        subtotal > 400000 ? 0 : 25000, 
+        [subtotal]
+    );
+    const total = useMemo(() => 
+        subtotal + shipping, 
+        [subtotal, shipping]
+    );
+    const itemCount = useMemo(() => {
+        const count = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+        console.log(`🔢 [${instanceId}] Calculating itemCount:`, { cartItems, count, updateTrigger });
+        return count;
+    }, [cartItems, instanceId, updateTrigger]);
 
     const addToCart = (product: {
         id: number;
@@ -61,22 +107,30 @@ export function useCart() {
         image: string;
         slug: string;
     }, quantity: number = 1, color?: string) => {
+        console.log(`🛒 [${instanceId}] Adding to cart:`, { product, quantity, color });
         setIsLoading(true);
         
         try {
             const cartId = `${product.id}-${color || 'default'}`;
             
+            // Use functional update to ensure we get the latest state
             setCartItems(prevItems => {
-                const existingItem = prevItems.find(item => item.id === cartId);
+                console.log(`📦 [${instanceId}] Previous items in functional update:`, prevItems);
                 
-                if (existingItem) {
+                const existingItemIndex = prevItems.findIndex(item => item.id === cartId);
+                
+                let newItems: CartItem[];
+                
+                if (existingItemIndex >= 0) {
+                    console.log(`✅ [${instanceId}] Item exists, updating quantity`);
                     // Update quantity if item already exists
-                    return prevItems.map(item =>
-                        item.id === cartId
+                    newItems = prevItems.map((item, index) =>
+                        index === existingItemIndex
                             ? { ...item, quantity: item.quantity + quantity }
                             : item
                     );
                 } else {
+                    console.log(`🆕 [${instanceId}] Adding new item`);
                     // Add new item
                     const newItem: CartItem = {
                         id: cartId,
@@ -88,8 +142,18 @@ export function useCart() {
                         color: color,
                         slug: product.slug
                     };
-                    return [...prevItems, newItem];
+                    newItems = [...prevItems, newItem];
                 }
+                
+                console.log(`🔄 [${instanceId}] Returning new items:`, newItems);
+                
+                // Schedule force update after state is set
+                setTimeout(() => {
+                    console.log(`⏰ [${instanceId}] Triggering force update...`);
+                    forceUpdate();
+                }, 100);
+                
+                return newItems;
             });
             
             return true;
@@ -149,6 +213,7 @@ export function useCart() {
         updateQuantity,
         removeFromCart,
         clearCart,
-        getCartData
+        getCartData,
+        updateTrigger // Add this for forcing re-renders
     };
 }
