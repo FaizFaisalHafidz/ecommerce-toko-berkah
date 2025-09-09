@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
@@ -88,11 +87,14 @@ export default function Create({ kategoris }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Untuk file upload, gunakan post dengan forceFormData: true
     post('/admin/produk', {
+      forceFormData: true,
       onSuccess: () => {
         toast.success('Produk berhasil ditambahkan');
       },
       onError: (errors) => {
+        console.log('Validation errors:', errors);
         toast.error('Terjadi kesalahan saat menambahkan produk');
       },
     });
@@ -153,18 +155,21 @@ export default function Create({ kategoris }: Props) {
                     <Label htmlFor="kategori_id">
                       Kategori <span className="text-red-500">*</span>
                     </Label>
-                    <Select value={data.kategori_id} onValueChange={(value) => setData('kategori_id', value)}>
-                      <SelectTrigger className={errors.kategori_id ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Pilih kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {kategoris.map((kategori) => (
-                          <SelectItem key={kategori.id} value={kategori.id.toString()}>
-                            {kategori.nama_kategori}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <select
+                      id="kategori_id"
+                      value={data.kategori_id}
+                      onChange={(e) => setData('kategori_id', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.kategori_id ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    >
+                      <option value="">Pilih kategori</option>
+                      {kategoris.map((kategori) => (
+                        <option key={kategori.id} value={kategori.id.toString()}>
+                          {kategori.nama_kategori}
+                        </option>
+                      ))}
+                    </select>
                     {errors.kategori_id && (
                       <p className="text-sm text-red-600">{errors.kategori_id}</p>
                     )}

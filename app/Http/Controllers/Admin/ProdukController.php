@@ -9,6 +9,7 @@ use App\Models\GambarProduk;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
@@ -68,6 +69,10 @@ class ProdukController extends Controller
 
     public function store(Request $request)
     {
+        // Debug logging
+        Log::info('Store produk - Request data:', $request->all());
+        Log::info('Store produk - Files:', $request->allFiles());
+
         $request->validate([
             'nama_produk' => 'required|string|max:255',
             'kategori_id' => 'required|exists:kategori_produk,id',
@@ -93,6 +98,20 @@ class ProdukController extends Controller
         DB::beginTransaction();
 
         try {
+            // Prepare data
+            $warna = $request->warna;
+            if (is_string($warna) && $this->isValidJson($warna)) {
+                // Keep as JSON string for database storage
+                $warna = $warna;
+            } elseif (is_array($warna)) {
+                $warna = json_encode($warna);
+            }
+
+            $tag = $request->tag;
+            if (is_string($tag) && $this->isValidJson($tag)) {
+                $tag = json_decode($tag, true) ?: [];
+            }
+
             $data = [
                 'kategori_id' => $request->kategori_id,
                 'nama_produk' => $request->nama_produk,
@@ -107,13 +126,15 @@ class ProdukController extends Controller
                 'berat' => $request->berat,
                 'dimensi' => $request->dimensi,
                 'material' => $request->material,
-                'warna' => $request->warna,
-                'tag' => $request->tag ?? [],
-                'produk_unggulan' => $request->produk_unggulan ?? false,
-                'produk_baru' => $request->produk_baru ?? true,
-                'aktif' => $request->aktif ?? true,
+                'warna' => $warna,
+                'tag' => $tag,
+                'produk_unggulan' => $request->boolean('produk_unggulan'),
+                'produk_baru' => $request->boolean('produk_baru'),
+                'aktif' => $request->boolean('aktif'),
                 'tanggal_rilis' => now(),
             ];
+
+            Log::info('Store produk - Processed data:', $data);
 
             $produk = Produk::create($data);
 
@@ -121,13 +142,17 @@ class ProdukController extends Controller
             if ($request->hasFile('gambar')) {
                 foreach ($request->file('gambar') as $index => $file) {
                     $gambarPath = $file->store('produk', 'public');
+                    $originalName = $file->getClientOriginalName();
                     
                     GambarProduk::create([
                         'produk_id' => $produk->id,
-                        'gambar' => $gambarPath,
+                        'nama_file' => $originalName,
+                        'path_gambar' => $gambarPath,
                         'alt_text' => $produk->nama_produk,
                         'gambar_utama' => $index === 0, // First image as main
                         'urutan' => $index + 1,
+                        'ukuran_file' => $file->getSize(),
+                        'tipe_file' => $file->getMimeType(),
                     ]);
                 }
             }
@@ -137,11 +162,22 @@ class ProdukController extends Controller
             return redirect()->route('admin.produk.index')
                 ->with('success', 'Produk berhasil ditambahkan.');
 
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
+            Log::error('Validation errors:', $e->errors());
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'Terjadi kesalahan saat menyimpan produk.']);
+                ->withErrors($e->errors());
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Store produk error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan saat menyimpan produk: ' . $e->getMessage()]);
         }
     }
 
@@ -293,8 +329,8 @@ class ProdukController extends Controller
 
                 foreach ($deletedImages as $deletedImage) {
                     // Delete file from storage
-                    if (Storage::disk('public')->exists($deletedImage->gambar)) {
-                        Storage::disk('public')->delete($deletedImage->gambar);
+                    if (Storage::disk('public')->exists($deletedImage->path_gambar)) {
+                        Storage::disk('public')->delete($deletedImage->path_gambar);
                     }
                     // Delete record from database
                     $deletedImage->delete();
@@ -307,13 +343,17 @@ class ProdukController extends Controller
                 
                 foreach ($request->file('gambar') as $index => $file) {
                     $gambarPath = $file->store('produk', 'public');
+                    $originalName = $file->getClientOriginalName();
                     
                     GambarProduk::create([
                         'produk_id' => $produk->id,
-                        'gambar' => $gambarPath,
+                        'nama_file' => $originalName,
+                        'path_gambar' => $gambarPath,
                         'alt_text' => $produk->nama_produk,
                         'gambar_utama' => $existingCount === 0 && $index === 0,
                         'urutan' => $existingCount + $index + 1,
+                        'ukuran_file' => $file->getSize(),
+                        'tipe_file' => $file->getMimeType(),
                     ]);
                 }
             }
@@ -383,6 +423,12 @@ class ProdukController extends Controller
         ]);
     }
 
+    private function isValidJson($string)
+    {
+        json_decode($string);
+        return json_last_error() === JSON_ERROR_NONE;
+    }
+
     public function toggleFeatured($id)
     {
         $produk = Produk::findOrFail($id);
@@ -399,7 +445,7 @@ class ProdukController extends Controller
     {
         $gambar = GambarProduk::where('produk_id', $produkId)->findOrFail($imageId);
         
-        Storage::disk('public')->delete($gambar->gambar);
+        Storage::disk('public')->delete($gambar->path_gambar);
         $gambar->delete();
 
         return response()->json([
