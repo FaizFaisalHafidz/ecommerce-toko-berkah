@@ -344,7 +344,12 @@ class CheckoutController extends Controller
             'total_harga' => $order->total_akhir,
             'ongkos_kirim' => $order->ongkos_kirim,
             'created_at' => $order->created_at->toISOString(),
-            'detailPesanan' => $order->detailPesanan->map(function ($detail) {
+            'detailPesanan' => $order->detailPesanan->map(function ($detail) use ($order) {
+                // Cek apakah ada ulasan untuk produk ini di pesanan ini
+                $existingReview = \App\Models\UlasanProduk::where('produk_id', $detail->produk->id)
+                    ->where('pesanan_id', $order->id)
+                    ->first();
+
                 return [
                     'id' => $detail->id,
                     'produk' => [
@@ -359,6 +364,14 @@ class CheckoutController extends Controller
                     ],
                     'jumlah' => $detail->jumlah,
                     'harga_saat_beli' => $detail->harga_satuan,
+                    'ulasan' => $existingReview ? [
+                        'id' => $existingReview->id,
+                        'rating' => $existingReview->rating,
+                        'isi_ulasan' => $existingReview->isi_ulasan,
+                        'nama_customer' => $existingReview->nama_customer,
+                        'disetujui' => $existingReview->disetujui,
+                        'created_at' => $existingReview->created_at->format('d M Y'),
+                    ] : null,
                 ];
             }),
         ];

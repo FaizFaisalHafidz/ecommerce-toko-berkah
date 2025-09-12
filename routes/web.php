@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\UlasanController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Admin\KategoriController;
 use App\Http\Controllers\Admin\LaporanController;
@@ -38,6 +39,12 @@ Route::get('/checkout/success', [CheckoutController::class, 'success'])->name('c
 // Order tracking routes (no authentication required)
 Route::get('/track-order', [CheckoutController::class, 'trackOrder'])->name('track.order');
 Route::post('/track-order', [CheckoutController::class, 'getOrderDetails'])->name('track.order.details');
+
+// Review routes (no authentication required - customer can review without login)
+Route::post('/ulasan', [UlasanController::class, 'store'])->name('ulasan.store');
+
+// Customer Orders page (no authentication required for guest checkout)
+Route::get('/orders', [CustomerController::class, 'orders'])->name('customer.orders');
 
 // Homepage for admin/dashboard
 // Route::get('/home', [HomeController::class, 'index'])->name('home');

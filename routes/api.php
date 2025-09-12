@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\UlasanController;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,3 +22,6 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // Order tracking API
 Route::get('/track-order/{orderNumber}', [CheckoutController::class, 'trackOrderApi'])->name('api.track.order');
+
+// Review API
+Route::post('/ulasan', [UlasanController::class, 'store'])->name('api.ulasan.store');

@@ -125,7 +125,8 @@ export default function Show({ pesanan }: Props) {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      pending: { label: 'Pending', icon: Clock, className: 'bg-yellow-100 text-yellow-800' },
+      menunggu_pembayaran: { label: 'Menunggu Pembayaran', icon: Clock, className: 'bg-yellow-100 text-yellow-800' },
+      dibayar: { label: 'Dibayar', icon: CheckCircle, className: 'bg-green-100 text-green-800' },
       diproses: { label: 'Diproses', icon: Package, className: 'bg-blue-100 text-blue-800' },
       dikirim: { label: 'Dikirim', icon: Truck, className: 'bg-purple-100 text-purple-800' },
       selesai: { label: 'Selesai', icon: CheckCircle, className: 'bg-green-100 text-green-800' },
@@ -145,10 +146,10 @@ export default function Show({ pesanan }: Props) {
 
   const getPaymentStatusBadge = (status: string) => {
     const statusConfig = {
-      pending: { label: 'Menunggu Pembayaran', className: 'bg-yellow-100 text-yellow-800' },
-      berhasil: { label: 'Pembayaran Berhasil', className: 'bg-green-100 text-green-800' },
+      belum_dibayar: { label: 'Belum Dibayar', className: 'bg-yellow-100 text-yellow-800' },
+      menunggu_verifikasi: { label: 'Menunggu Verifikasi', className: 'bg-blue-100 text-blue-800' },
+      dibayar: { label: 'Pembayaran Berhasil', className: 'bg-green-100 text-green-800' },
       gagal: { label: 'Pembayaran Gagal', className: 'bg-red-100 text-red-800' },
-      expired: { label: 'Pembayaran Kadaluarsa', className: 'bg-gray-100 text-gray-800' },
     };
 
     const config = statusConfig[status as keyof typeof statusConfig];
@@ -344,7 +345,8 @@ export default function Show({ pesanan }: Props) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="menunggu_pembayaran">Menunggu Pembayaran</SelectItem>
+                          <SelectItem value="dibayar">Dibayar</SelectItem>
                           <SelectItem value="diproses">Diproses</SelectItem>
                           <SelectItem value="dikirim">Dikirim</SelectItem>
                           <SelectItem value="selesai">Selesai</SelectItem>
@@ -419,10 +421,10 @@ export default function Show({ pesanan }: Props) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="berhasil">Berhasil</SelectItem>
+                          <SelectItem value="belum_dibayar">Belum Dibayar</SelectItem>
+                          <SelectItem value="menunggu_verifikasi">Menunggu Verifikasi</SelectItem>
+                          <SelectItem value="dibayar">Dibayar</SelectItem>
                           <SelectItem value="gagal">Gagal</SelectItem>
-                          <SelectItem value="expired">Expired</SelectItem>
                         </SelectContent>
                       </Select>
                       

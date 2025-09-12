@@ -144,7 +144,7 @@ class PesananController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status_pesanan' => 'required|in:pending,diproses,dikirim,selesai,dibatalkan',
+            'status_pesanan' => 'required|in:menunggu_pembayaran,dibayar,diproses,dikirim,selesai,dibatalkan',
             'catatan_admin' => 'nullable|string',
             'nomor_resi' => 'nullable|string|max:255',
         ]);
@@ -161,21 +161,13 @@ class PesananController extends Controller
 
         // Log status change atau kirim notifikasi di sini jika diperlukan
 
-        return response()->json([
-            'success' => true,
-            'message' => "Status pesanan berhasil diubah dari '{$oldStatus}' ke '{$request->status_pesanan}'",
-            'data' => [
-                'status_pesanan' => $pesanan->status_pesanan,
-                'nomor_resi' => $pesanan->nomor_resi,
-                'updated_at' => $pesanan->updated_at->format('d M Y H:i'),
-            ],
-        ]);
+        return back()->with('success', "Status pesanan berhasil diubah dari '{$oldStatus}' ke '{$request->status_pesanan}'");
     }
 
     public function updatePaymentStatus(Request $request, $id)
     {
         $request->validate([
-            'status_pembayaran' => 'required|in:pending,berhasil,gagal,expired',
+            'status_pembayaran' => 'required|in:belum_dibayar,menunggu_verifikasi,dibayar,gagal'
         ]);
 
         $pesanan = Pesanan::findOrFail($id);
@@ -186,14 +178,7 @@ class PesananController extends Controller
             'status_pembayaran' => $request->status_pembayaran,
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Status pembayaran berhasil diubah dari '{$oldStatus}' ke '{$request->status_pembayaran}'",
-            'data' => [
-                'status_pembayaran' => $pesanan->status_pembayaran,
-                'updated_at' => $pesanan->updated_at->format('d M Y H:i'),
-            ],
-        ]);
+        return back()->with('success', "Status pembayaran berhasil diubah dari '{$oldStatus}' ke '{$request->status_pembayaran}'");
     }
 
     public function printInvoice($id)

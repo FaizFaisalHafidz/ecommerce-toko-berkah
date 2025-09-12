@@ -1,5 +1,7 @@
 import CustomerLayout from '@/components/customer/CustomerLayout';
 import { Head } from '@inertiajs/react';
+import axios from 'axios';
+import { Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface Order {
@@ -27,6 +29,14 @@ interface Order {
         };
         jumlah: number;
         harga_saat_beli: number | string;
+        ulasan?: {
+            id: number;
+            rating: number;
+            isi_ulasan: string;
+            nama_customer: string;
+            disetujui: boolean;
+            created_at: string;
+        } | null;
     }>;
 }
 
@@ -36,45 +46,152 @@ export default function TrackOrder() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Auto-fill and track order if order_id in URL
-    useEffect(() => {
+    // State untuk review forms - setiap produk punya form sendiri
+    const [reviewForms, setReviewForms] = useState<{[key: number]: { rating: number; ulasan: string; isSubmitting: boolean; showForm: boolean }}>({});
+
+    // Function untuk menampilkan form review untuk produk tertentu
+    const toggleReviewForm = (productId: number) => {
+        setReviewForms(prev => ({
+            ...prev,
+            [productId]: {
+                ...prev[productId],
+                showForm: !prev[productId]?.showForm,
+                rating: prev[productId]?.rating || 0,
+                ulasan: prev[productId]?.ulasan || '',
+                isSubmitting: prev[productId]?.isSubmitting || false
+            }
+        }));
+    };
+
+    // Function untuk mengubah rating
+    const updateRating = (productId: number, rating: number) => {
+        setReviewForms(prev => ({
+            ...prev,
+            [productId]: {
+                ...prev[productId],
+                rating,
+                showForm: prev[productId]?.showForm || false,
+                ulasan: prev[productId]?.ulasan || '',
+                isSubmitting: prev[productId]?.isSubmitting || false
+            }
+        }));
+    };
+
+    // Function untuk mengubah ulasan
+    const updateUlasan = (productId: number, ulasan: string) => {
+        setReviewForms(prev => ({
+            ...prev,
+            [productId]: {
+                ...prev[productId],
+                ulasan,
+                showForm: prev[productId]?.showForm || false,
+                rating: prev[productId]?.rating || 0,
+                isSubmitting: prev[productId]?.isSubmitting || false
+            }
+        }));
+    };
+
+    // Function untuk submit review
+    const submitReview = async (productId: number) => {
+        const reviewData = reviewForms[productId];
+        
+        if (!reviewData) {
+            alert('Data review tidak ditemukan');
+            return;
+        }
+
+        if (reviewData.rating === 0) {
+            alert('Rating harus dipilih');
+            return;
+        }
+
+        if (reviewData.ulasan.trim() === '') {
+            alert('Ulasan harus diisi');
+            return;
+        }
+
+        // Set loading state
+        setReviewForms(prev => ({
+            ...prev,
+            [productId]: {
+                ...prev[productId],
+                isSubmitting: true
+            }
+        }));
+
+        try {
+            const response = await axios.post('/api/ulasan', {
+                pesanan_id: orderId, // Gunakan orderId yang diinput user (nomor_pesanan)
+                produk_id: productId,
+                rating: reviewData.rating,
+                ulasan: reviewData.ulasan.trim()
+            });
+
+            if (response.data.success) {
+                alert('Ulasan berhasil disimpan!');
+                // Reset form dan sembunyikan
+                setReviewForms(prev => ({
+                    ...prev,
+                    [productId]: {
+                        rating: 0,
+                        ulasan: '',
+                        isSubmitting: false,
+                        showForm: false
+                    }
+                }));
+                // Refresh data order untuk mendapatkan ulasan terbaru
+                searchOrder();
+            }
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Terjadi kesalahan saat menyimpan ulasan');
+        } finally {
+            // Reset loading state
+            setReviewForms(prev => ({
+                ...prev,
+                [productId]: {
+                    ...prev[productId],
+                    isSubmitting: false
+                }
+            }));
+        }
+    };    useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const orderIdFromUrl = urlParams.get('order_id');
         
         if (orderIdFromUrl) {
             setOrderId(orderIdFromUrl);
             // Auto track the order
-            trackOrderById(orderIdFromUrl);
+            searchOrder();
         }
     }, []);
 
-    const trackOrderById = async (id: string) => {
-        if (!id.trim()) {
-            setError('Mohon masukkan ID pesanan');
+    const searchOrder = async () => {
+        if (!orderId.trim()) {
+            setError('ID pesanan harus diisi');
             return;
         }
 
         setLoading(true);
         setError('');
-        setOrder(null);
-
+        
         try {
-            const response = await fetch(`/api/track-order/${id}`);
+            const response = await axios.get(`/api/track-order/${orderId.trim()}`);
             
-            if (!response.ok) {
-                if (response.status === 404) {
-                    setError('Pesanan tidak ditemukan. Pastikan ID pesanan benar.');
-                } else {
-                    setError('Gagal melacak pesanan. Silakan coba lagi.');
-                }
-                return;
+            if (response.data.success) {
+                setOrder(response.data.data);
+                // Reset review forms
+                setReviewForms({});
+            } else {
+                setError('Pesanan tidak ditemukan');
+                setOrder(null);
             }
-
-            const data = await response.json();
-            setOrder(data.data);
-        } catch (error) {
-            console.error('Error tracking order:', error);
-            setError('Terjadi kesalahan saat melacak pesanan. Silakan coba lagi.');
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                setError('Pesanan tidak ditemukan');
+            } else {
+                setError('Terjadi kesalahan saat mencari pesanan');
+            }
+            setOrder(null);
         } finally {
             setLoading(false);
         }
@@ -82,7 +199,7 @@ export default function TrackOrder() {
 
     const handleTrackOrder = async (e: React.FormEvent) => {
         e.preventDefault();
-        await trackOrderById(orderId);
+        await searchOrder();
     };    const getStatusColor = (status: string | undefined | null) => {
         if (!status) return 'text-gray-600 bg-gray-50 border-gray-200';
         
@@ -291,23 +408,159 @@ export default function TrackOrder() {
                                         </div>
                                         <div className="space-y-6">
                                             {order.detailPesanan.map((item) => (
-                                                <div key={item.id} className="flex items-center space-x-6 p-6 border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 shadow-sm">
-                                                    <img
-                                                        src={item.produk.gambarProduk[0]?.url || '/placeholder.jpg'}
-                                                        alt={item.produk.nama}
-                                                        className="w-20 h-20 object-cover shadow-lg"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <h4 className="font-medium text-gray-900 mb-2 tracking-wide">{item.produk.nama}</h4>
-                                                        <p className="text-sm text-gray-600">
-                                                            {formatCurrency(item.harga_saat_beli)} × {item.jumlah}
-                                                        </p>
+                                                <div key={item.id} className="border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 shadow-sm">
+                                                    {/* Product Info */}
+                                                    <div className="flex items-center space-x-6 p-6">
+                                                        <img
+                                                            src={item.produk.gambarProduk[0]?.url || '/placeholder.jpg'}
+                                                            alt={item.produk.nama}
+                                                            className="w-20 h-20 object-cover shadow-lg"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <h4 className="font-medium text-gray-900 mb-2 tracking-wide">{item.produk.nama}</h4>
+                                                            <p className="text-sm text-gray-600">
+                                                                {formatCurrency(item.harga_saat_beli)} × {item.jumlah}
+                                                            </p>
+                                                            
+                                                            {/* Review Actions */}
+                                                            {order.status_pesanan === 'selesai' && (
+                                                                <div className="mt-2">
+                                                                    {item.ulasan ? (
+                                                                        // Jika sudah ada ulasan, tampilkan info
+                                                                        <div className="inline-flex items-center px-3 py-1 text-xs font-medium text-green-800 bg-green-100 border border-green-200 rounded-md">
+                                                                            <Star className="w-3 h-3 mr-1 text-green-600" />
+                                                                            Ulasan telah diberikan
+                                                                        </div>
+                                                                    ) : (
+                                                                        // Jika belum ada ulasan, tampilkan tombol
+                                                                        <button
+                                                                            onClick={() => toggleReviewForm(item.produk.id)}
+                                                                            className="inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-amber-600 border border-amber-600 rounded-md hover:bg-amber-700 transition-colors"
+                                                                        >
+                                                                            <Star className="w-3 h-3 mr-1" />
+                                                                            {reviewForms[item.produk.id]?.showForm ? 'Tutup Ulasan' : 'Beri Ulasan'}
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="font-medium text-gray-900 text-lg">
+                                                                {formatCurrency(toNumber(item.harga_saat_beli) * item.jumlah)}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="font-medium text-gray-900 text-lg">
-                                                            {formatCurrency(toNumber(item.harga_saat_beli) * item.jumlah)}
-                                                        </p>
-                                                    </div>
+
+                                                    {/* Ulasan yang sudah ada - ditampilkan jika ada */}
+                                                    {item.ulasan && (
+                                                        <div className="border-t border-gray-200 bg-green-50 p-6">
+                                                            <div className="space-y-3">
+                                                                <div className="flex items-center justify-between">
+                                                                    <h5 className="text-md font-medium text-gray-900">Ulasan Anda</h5>
+                                                                    <div className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                                                                        item.ulasan.disetujui 
+                                                                            ? 'text-green-800 bg-green-100 border border-green-200' 
+                                                                            : 'text-yellow-800 bg-yellow-100 border border-yellow-200'
+                                                                    }`}>
+                                                                        {item.ulasan.disetujui ? 'Disetujui' : 'Menunggu Persetujuan'}
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                {/* Rating yang diberikan */}
+                                                                <div className="flex items-center space-x-1">
+                                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                                        <Star 
+                                                                            key={star}
+                                                                            className={`w-4 h-4 ${
+                                                                                star <= item.ulasan!.rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
+                                                                            }`}
+                                                                        />
+                                                                    ))}
+                                                                    <span className="ml-2 text-sm text-gray-600">
+                                                                        {item.ulasan.rating} dari 5 bintang
+                                                                    </span>
+                                                                </div>
+
+                                                                {/* Isi ulasan */}
+                                                                <div className="bg-white p-4 rounded-md border border-gray-200">
+                                                                    <p className="text-gray-700 text-sm leading-relaxed">
+                                                                        {item.ulasan.isi_ulasan}
+                                                                    </p>
+                                                                </div>
+
+                                                                <div className="text-xs text-gray-500">
+                                                                    Dikirim pada {item.ulasan.created_at}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Review Form - Inline (hanya tampil jika belum ada ulasan) */}
+                                                    {order.status_pesanan === 'selesai' && !item.ulasan && reviewForms[item.produk.id]?.showForm && (
+                                                        <div className="border-t border-gray-200 bg-white p-6">
+                                                            <div className="space-y-4">
+                                                                <h5 className="text-md font-medium text-gray-900">Ulasan untuk {item.produk.nama}</h5>
+                                                                
+                                                                {/* Rating */}
+                                                                <div>
+                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                                        Rating
+                                                                    </label>
+                                                                    <div className="flex items-center space-x-1">
+                                                                        {[1, 2, 3, 4, 5].map((star) => (
+                                                                            <button
+                                                                                key={star}
+                                                                                onClick={() => updateRating(item.produk.id, star)}
+                                                                                className={`p-1 rounded-full hover:bg-gray-100 transition-colors ${
+                                                                                    star <= (reviewForms[item.produk.id]?.rating || 0) ? 'text-yellow-400' : 'text-gray-300'
+                                                                                }`}
+                                                                            >
+                                                                                <Star className="w-5 h-5 fill-current" />
+                                                                            </button>
+                                                                        ))}
+                                                                        <span className="ml-2 text-sm text-gray-600">
+                                                                            {(reviewForms[item.produk.id]?.rating || 0) > 0 ? `${reviewForms[item.produk.id]?.rating} bintang` : 'Pilih rating'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Ulasan */}
+                                                                <div>
+                                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                                        Ulasan Anda
+                                                                    </label>
+                                                                    <textarea
+                                                                        value={reviewForms[item.produk.id]?.ulasan || ''}
+                                                                        onChange={(e) => updateUlasan(item.produk.id, e.target.value)}
+                                                                        rows={3}
+                                                                        maxLength={500}
+                                                                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-amber-500 focus:border-amber-500"
+                                                                        placeholder="Ceritakan pengalaman Anda dengan produk ini..."
+                                                                    />
+                                                                    <p className="mt-1 text-sm text-gray-500">
+                                                                        {(reviewForms[item.produk.id]?.ulasan || '').length}/500 karakter
+                                                                    </p>
+                                                                </div>
+
+                                                                {/* Tombol */}
+                                                                <div className="flex space-x-3">
+                                                                    <button
+                                                                        onClick={() => submitReview(item.produk.id)}
+                                                                        disabled={reviewForms[item.produk.id]?.isSubmitting || (reviewForms[item.produk.id]?.rating || 0) === 0}
+                                                                        className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-amber-600 border border-transparent rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        {reviewForms[item.produk.id]?.isSubmitting ? 'Mengirim...' : 'Kirim Ulasan'}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => toggleReviewForm(item.produk.id)}
+                                                                        className="inline-flex justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                                                                    >
+                                                                        Batal
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

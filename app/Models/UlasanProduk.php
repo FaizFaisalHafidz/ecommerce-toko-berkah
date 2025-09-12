@@ -14,6 +14,7 @@ class UlasanProduk extends Model
 
     protected $fillable = [
         'user_id',
+        'nama_customer',
         'produk_id',
         'pesanan_id',
         'rating',

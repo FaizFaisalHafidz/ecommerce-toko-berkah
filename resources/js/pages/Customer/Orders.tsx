@@ -1,6 +1,7 @@
 import CustomerLayout from '@/components/customer/CustomerLayout';
-import { Head, usePage } from '@inertiajs/react';
-import { CheckCircle, Clock, Eye, Package, XCircle } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { CheckCircle, Clock, Eye, Package, Star, X, XCircle } from 'lucide-react';
+import { useState } from 'react';
 
 // Mock data untuk demo - nanti akan diganti dengan data dari API
 const mockOrders = [
@@ -22,7 +23,7 @@ const mockOrders = [
     {
         id: 'ORD-002',
         date: '2025-09-02',
-        status: 'processing',
+        status: 'delivered',
         total: 350000,
         items: [
             {
@@ -119,7 +120,82 @@ const formatDate = (dateString: string) => {
 };
 
 export default function Orders() {
-    const { auth } = usePage().props as any;
+    const { auth } = usePage().props;
+    
+    // State untuk modal ulasan
+    const [reviewModal, setReviewModal] = useState({
+        isOpen: false,
+        orderId: '',
+        productId: 0,
+        productName: '',
+        productImage: ''
+    });
+    
+    // State untuk form ulasan
+    const [reviewForm, setReviewForm] = useState({
+        rating: 0,
+        ulasan: '',
+        isSubmitting: false
+    });
+
+    // Fungsi untuk membuka modal ulasan
+    const openReviewModal = (orderId: string, productId: number, productName: string, productImage: string) => {
+        setReviewModal({
+            isOpen: true,
+            orderId,
+            productId,
+            productName,
+            productImage
+        });
+        setReviewForm({
+            rating: 0,
+            ulasan: '',
+            isSubmitting: false
+        });
+    };
+
+    // Fungsi untuk menutup modal ulasan
+    const closeReviewModal = () => {
+        setReviewModal({
+            isOpen: false,
+            orderId: '',
+            productId: 0,
+            productName: '',
+            productImage: ''
+        });
+    };
+
+    // Fungsi untuk submit ulasan
+    const submitReview = async () => {
+        if (reviewForm.rating === 0) {
+            alert('Silakan pilih rating terlebih dahulu');
+            return;
+        }
+        
+        if (reviewForm.ulasan.trim() === '') {
+            alert('Silakan tulis ulasan Anda');
+            return;
+        }
+
+        setReviewForm(prev => ({ ...prev, isSubmitting: true }));
+
+        try {
+            await router.post('/ulasan', {
+                produk_id: reviewModal.productId,
+                pesanan_id: reviewModal.orderId,
+                rating: reviewForm.rating,
+                ulasan: reviewForm.ulasan.trim()
+            });
+
+            alert('Ulasan berhasil dikirim!');
+            closeReviewModal();
+        } catch (error) {
+            console.error('Error submitting review:', error);
+            alert('Gagal mengirim ulasan. Silakan coba lagi.');
+        } finally {
+            setReviewForm(prev => ({ ...prev, isSubmitting: false }));
+        }
+    };
 
     return (
         <CustomerLayout title="Pesanan Saya - Toko Tas Berkah">
@@ -191,11 +267,23 @@ export default function Orders() {
                                 {/* Order Footer */}
                                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex space-x-2">
+                                        <div className="flex flex-wrap gap-2">
                                             {order.status === 'delivered' && (
-                                                <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-                                                    Beli Lagi
-                                                </button>
+                                                <>
+                                                    <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                                                        Beli Lagi
+                                                    </button>
+                                                    {order.items.map((item) => (
+                                                        <button
+                                                            key={`review-${item.id}`}
+                                                            onClick={() => openReviewModal(order.id, item.id, item.name, item.image)}
+                                                            className="px-4 py-2 text-sm font-medium text-white bg-amber-600 border border-amber-600 rounded-md hover:bg-amber-700 transition-colors flex items-center"
+                                                        >
+                                                            <Star className="w-4 h-4 mr-1" />
+                                                            Ulasan {item.name.substring(0, 15)}...
+                                                        </button>
+                                                    ))}
+                                                </>
                                             )}
                                             <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
                                                 Lihat Detail
@@ -233,6 +321,111 @@ export default function Orders() {
                     )}
                 </div>
             </div>
+
+            {/* Modal Ulasan */}
+            {reviewModal.isOpen && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        {/* Background overlay */}
+                        <div 
+                            className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                            onClick={closeReviewModal}
+                        ></div>
+
+                        {/* Modal panel */}
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            {/* Header */}
+                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-medium text-gray-900">
+                                        Beri Ulasan Produk
+                                    </h3>
+                                    <button
+                                        onClick={closeReviewModal}
+                                        className="text-gray-400 hover:text-gray-600"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                {/* Product Info */}
+                                <div className="flex items-center space-x-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                                    <img
+                                        src={reviewModal.productImage}
+                                        alt={reviewModal.productName}
+                                        className="w-16 h-16 object-cover rounded-md"
+                                    />
+                                    <div>
+                                        <h4 className="font-medium text-gray-900">
+                                            {reviewModal.productName}
+                                        </h4>
+                                        <p className="text-sm text-gray-600">
+                                            Order ID: {reviewModal.orderId}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Rating */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Rating
+                                    </label>
+                                    <div className="flex items-center space-x-1">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                onClick={() => setReviewForm(prev => ({ ...prev, rating: star }))}
+                                                className={`p-1 rounded-full hover:bg-gray-100 transition-colors ${
+                                                    star <= reviewForm.rating ? 'text-yellow-400' : 'text-gray-300'
+                                                }`}
+                                            >
+                                                <Star className="w-6 h-6 fill-current" />
+                                            </button>
+                                        ))}
+                                        <span className="ml-2 text-sm text-gray-600">
+                                            {reviewForm.rating > 0 ? `${reviewForm.rating} bintang` : 'Pilih rating'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Ulasan */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Ulasan Anda
+                                    </label>
+                                    <textarea
+                                        value={reviewForm.ulasan}
+                                        onChange={(e) => setReviewForm(prev => ({ ...prev, ulasan: e.target.value }))}
+                                        rows={4}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-amber-500 focus:border-amber-500"
+                                        placeholder="Ceritakan pengalaman Anda dengan produk ini..."
+                                    />
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {reviewForm.ulasan.length}/500 karakter
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                <button
+                                    onClick={submitReview}
+                                    disabled={reviewForm.isSubmitting || reviewForm.rating === 0}
+                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-amber-600 text-base font-medium text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {reviewForm.isSubmitting ? 'Mengirim...' : 'Kirim Ulasan'}
+                                </button>
+                                <button
+                                    onClick={closeReviewModal}
+                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                >
+                                    Batal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </CustomerLayout>
     );
 }
